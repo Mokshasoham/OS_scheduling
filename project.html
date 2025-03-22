@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy-Efficient OS Scheduling</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+<body class="bg-gray-800 p-6">
+    <div class="container mx-auto max-w-3xl">
+        <h1 class="text-2xl font-bold mb-4 text-center text-white">Energy-Efficient OS Scheduling</h1>
+        
+        <div class="bg-gray-400 p-6 rounded-lg shadow-lg shadow-gray-500 border-2 border-gray-600">
+            <label class="block font-semibold mb-2">Select Algorithm:</label>
+            <select id="algorithm" class="border p-2 rounded w-full mb-4 bg-gray-200 rounded-full">
+                <option value="FCFS">FCFS (First-Come, First-Serve)</option>
+                <option value="RR">RR (Round Robin)</option>
+                <option value="EnergyAware">Energy-Aware Scheduling</option>
+            </select>
+
+            <div id="quantum-time-container" class="mt-2 hidden">
+                <label class="block font-semibold mb-2">Quantum Time:</label>
+                <input type="number" id="quantum-time" class="border p-2 rounded w-full" placeholder="Enter Quantum Time">
+            </div>
+
+            <div id="tasks"></div>
+
+            <button onclick="addTask()" class="cursor-pointer transition-all bg-blue-500 text-white px-6 py-2 rounded-full
+            border-blue-600
+            border-b-[4px] hover:brightness-110 hover:-translate-y-[1px] hover:border-b-[6px]
+            active:border-b-[2px] active:brightness-90 active:translate-y-[2px] mt-4">Add Task</button>
+            <button onclick="runScheduling()" class="cursor-pointer transition-all bg-green-500 text-white px-6 py-2 rounded-full
+            border-green-600
+            border-b-[4px] hover:brightness-110 hover:-translate-y-[1px] hover:border-b-[6px]
+            active:border-b-[2px] active:brightness-90 active:translate-y-[2px]">Run Scheduling</button>
+        </div>
+
+        <!-- Results Section -->
+        <div class="bg-green-200 p-6 rounded-lg shadow-lg shadow-green-400 mt-6 border-2 border-green-600">
+            <h2 class="text-xl font-bold mb-4">Scheduling Results 🎉</h2>
+            <table class="w-full border-collapse border border-gray-300">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="border border-gray-300 p-2">Task</th>
+                        <th class="border border-gray-300 p-2">Start Time</th>
+                        <th class="border border-gray-300 p-2">Finish Time</th>
+                        <th class="border border-gray-300 p-2">Energy Saved</th>
+                    </tr>
+                </thead>
+                <tbody id="results"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="flex flex-wrap justify-center gap-4 mt-6">
+        <div class="bg-white p-6 rounded-lg shadow-lg shadow-gray-400 w-[45%] border-2 border-black">
+            <h2 class="text-xl font-bold mb-4">Energy Savings Chart 📊</h2>
+            <p class="text-gray-600 text-lg font-semibold text-center" id="energyPercentage">Overall Energy Saved: 0%</p>
+            <canvas id="energyChart"></canvas>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-lg shadow-gray-400 w-[45%] border-2 border-black">
+            <h2 class="text-xl font-bold mb-4">CPU Usage Over Time ⏳</h2>
+            <p class="text-gray-600 text-lg font-semibold text-center" id="cpuPercentage">Average CPU Usage: 0%</p>
+            <canvas id="cpuChart"></canvas>
+        </div>
+    </div>
+    
+
+    <script>
+        document.getElementById("algorithm").addEventListener("change", function () {
+            const quantumTimeInput = document.getElementById("quantum-time-container");
+            quantumTimeInput.classList.toggle("hidden", this.value !== "RR");
+        });
+    
+        function addTask() {
+            const taskContainer = document.getElementById("tasks");
+            const taskElement = document.createElement("div");
+            taskElement.classList.add("flex", "space-x-2", "mb-2", "task-row");
+            taskElement.innerHTML = `
+                <input type="number" placeholder="Arrival Time" class="border p-2 rounded w-full mt-4 arrival-time">
+                <input type="number" placeholder="Burst Time" class="border p-2 rounded w-full mt-4 burst-time">
+                <input type="number" placeholder="Priority" class="border p-2 rounded w-full mt-4 priority">
+                <button onclick="removeTask(this)" class="cursor-pointer transition-all bg-red-500 text-white px-6 py-2 rounded-lg
+            border-red-600
+            border-b-[4px] hover:brightness-110 hover:-translate-y-[1px] hover:border-b-[6px]
+            active:border-b-[2px] active:brightness-90 active:translate-y-[2px] mt-4">
+                    Remove
+                </button>
+            `;
+            taskContainer.appendChild(taskElement);
+        }
+    
+        function removeTask(button) {
+            button.parentElement.remove();
+        }
+    
+        function runScheduling() {
+    const algorithm = document.getElementById("algorithm").value;
+    let quantumTime = algorithm === "RR" ? parseInt(document.getElementById("quantum-time").value) : null;
+    
+    if (algorithm === "RR" && (!quantumTime || quantumTime <= 0)) {
+        alert("Please enter a valid Quantum Time.");
+        return;
+    }
+
+    const tasks = [];
+    document.querySelectorAll(".task-row").forEach((taskElement, index) => {
+        const arrivalTime = parseInt(taskElement.querySelector(".arrival-time").value);
+        const burstTime = parseInt(taskElement.querySelector(".burst-time").value);
+        const priority = parseInt(taskElement.querySelector(".priority").value || 0);
+        
+        let cpuFrequencyUsed = priority >= 5 ? 1.0 : priority >= 3 ? 0.7 : 0.5;
+
+        tasks.push({ id: index + 1, arrivalTime, burstTime, remainingTime: burstTime, priority, cpuFrequencyUsed });
+    });
+
+    if (tasks.length === 0) {
+        alert("Please add at least one valid task.");
+        return;
+    }
+
+    tasks.sort((a, b) => a.arrivalTime - b.arrivalTime);
+
+    let schedule = [];
+    let currentTime = 0;
+    let queue = [];
+    let timeLabels = [];
+    let cpuUsageData = [];
+    let totalEnergySaved = 0;
+    let totalCpuUsage = 0;
+    let totalBurstTime = tasks.reduce((sum, task) => sum + task.burstTime, 0);
+
+    let index = 0;
+    while (queue.length > 0 || index < tasks.length) {
+        while (index < tasks.length && tasks[index].arrivalTime <= currentTime) {
+            queue.push(tasks[index]);
+            index++;
+        }
+
+        if (queue.length === 0) {
+            currentTime++;
+            continue;
+        }
+
+        let task;
+        if (algorithm === "EnergyAware") {
+            queue.sort((a, b) => a.cpuFrequencyUsed - b.cpuFrequencyUsed);
+        }
+        
+        task = queue.shift();
+        let startTime = currentTime;
+        let executionTime = algorithm === "RR" ? Math.min(quantumTime, task.remainingTime) : task.remainingTime;
+        let finishTime = startTime + executionTime;
+        task.remainingTime -= executionTime;
+
+        for (let t = startTime; t < finishTime; t++) {
+            timeLabels.push(t);
+            cpuUsageData.push(task.cpuFrequencyUsed * 100);
+            totalCpuUsage += task.cpuFrequencyUsed * 100;
+        }
+
+        let energySaved = executionTime * (1.0 - task.cpuFrequencyUsed);
+        schedule.push({ task: task.id, start: startTime, finish: finishTime, energySaved });
+        totalEnergySaved += energySaved;
+
+        if (task.remainingTime > 0) {
+            queue.push(task);
+        }
+
+        currentTime = finishTime;
+    }
+
+    const overallEnergySaved = (totalEnergySaved / totalBurstTime) * 100;
+    const averageCpuUsage = totalCpuUsage / totalBurstTime;
+
+    document.getElementById("energyPercentage").textContent = `Overall Energy Saved: ${overallEnergySaved.toFixed(2)}%`;
+    document.getElementById("cpuPercentage").textContent = `Average CPU Usage: ${averageCpuUsage.toFixed(2)}%`;
+
+    displayResults(schedule);
+    generateCPUChart(timeLabels, cpuUsageData);
+}
+
+    
+        function displayResults(schedule) {
+            const resultsTable = document.getElementById("results");
+            resultsTable.innerHTML = "";
+    
+            let taskLabels = [];
+            let energyData = [];
+    
+            schedule.forEach(entry => {
+                const row = `<tr>
+                    <td class="border-2 border-gray-300 px-14 py-2">T${entry.task}</td>
+                    <td class="border-2 border-gray-300 px-14 py-2">${entry.start}</td>
+                    <td class="border-2 border-gray-300 px-14 py-2">${entry.finish}</td>
+                    <td class="border-2 border-gray-300 px-14 py-2">${entry.energySaved.toFixed(2)}</td>
+                </tr>`;
+                resultsTable.innerHTML += row;
+    
+                taskLabels.push(`T${entry.task}`);
+                energyData.push(entry.energySaved);
+            });
+    
+            generateEnergyChart(taskLabels, energyData);
+        }
+    
+        function generateEnergyChart(taskLabels, energyData) {
+            const ctx = document.getElementById("energyChart").getContext("2d");
+    
+            if (window.energyChartInstance) {
+                window.energyChartInstance.destroy();
+            }
+    
+            window.energyChartInstance = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: taskLabels,
+                    datasets: [{
+                        label: "Energy Saved (Joules)",
+                        data: energyData,
+                        backgroundColor: "rgba(54, 162, 235, 0.5)",
+                        borderColor: "rgba(54, 162, 235, 1)",
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+    
+        function generateCPUChart(timeLabels, cpuUsageData) {
+            const ctx = document.getElementById("cpuChart").getContext("2d");
+    
+            if (window.cpuChartInstance) {
+                window.cpuChartInstance.destroy();
+            }
+    
+            window.cpuChartInstance = new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels: timeLabels,
+                    datasets: [{
+                        label: "CPU Usage (%)",
+                        data: cpuUsageData,
+                        backgroundColor: "rgba(255, 99, 132, 0.2)",
+                        borderColor: "rgba(255, 99, 132, 1)",
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            suggestedMax: 100
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
